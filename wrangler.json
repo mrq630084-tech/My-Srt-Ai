@@ -1,0 +1,8 @@
+{
+  "name": "my-srt-ai",
+  "main": "index.js",
+  "compatibility_date": "2026-02-19",
+  "ai": {
+    "binding": "AI"
+  }
+}
