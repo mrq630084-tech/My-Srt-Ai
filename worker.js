@@ -1,69 +1,130 @@
 export default {
   async fetch(request, env) {
     if (request.method === "POST") {
-      const formData = await request.formData();
-      const audioFile = formData.get("file");
-      
-      const response = await env.AI.run("@cf/openai/whisper", {
-        audio: [...new Uint8Array(await audioFile.arrayBuffer())],
-      });
-      
-      return new Response(JSON.stringify(response), {
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
-      });
+      try {
+        const formData = await request.formData();
+        const audioFile = formData.get("file");
+        if (!audioFile) return new Response(JSON.stringify({ error: "No file uploaded" }), { status: 400 });
+
+        const response = await env.AI.run("@cf/openai/whisper", {
+          audio: [...new Uint8Array(await audioFile.arrayBuffer())],
+        });
+        
+        return new Response(JSON.stringify(response), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+      }
     }
 
-    // Website UI (ရွှေရောင် Design)
     const html = `
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Premium AI Subtitle Generator</title>
+        <title>Joker SRT - AI Subtitle Maker</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
-            body { background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%); }
-            .premium-card { background: #e5e7eb; border-radius: 30px; box-shadow: 20px 20px 60px #c2c5ca, -20px -20px 60px #ffffff; }
-            .gold-text { background: linear-gradient(to right, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: bold; }
-            .platinum-btn { background: linear-gradient(145deg, #ffffff, #d1d5db); box-shadow: 5px 5px 15px #c2c5ca, -5px -5px 15px #ffffff; transition: all 0.3s ease; color: #4b5563; }
-            .platinum-btn:active { box-shadow: inset 5px 5px 10px #c2c5ca, inset -5px -5px 10px #ffffff; }
+            body { 
+                background: radial-gradient(circle at center, #bf953f, #aa771c, #4a370e); 
+                min-height: screen;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            }
+            .glass-card {
+                background: rgba(255, 255, 255, 0.15);
+                backdrop-filter: blur(15px);
+                border-radius: 40px;
+                border: 1px solid rgba(255, 246, 186, 0.3);
+                box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+                padding: 3rem;
+                width: 100%;
+                max-width: 450px;
+                text-align: center;
+            }
+            .gold-title {
+                font-size: 3rem;
+                font-weight: 900;
+                background: linear-gradient(to bottom, #fff6ba, #bf953f, #8a6e2f);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                text-shadow: 2px 4px 10px rgba(0,0,0,0.2);
+                letter-spacing: 2px;
+            }
+            .platinum-btn {
+                background: linear-gradient(145deg, #ffffff, #d1d5db);
+                border-radius: 50px;
+                color: #2d3748;
+                font-weight: bold;
+                transition: 0.3s;
+                box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+            }
+            .platinum-btn:active { transform: scale(0.95); }
+            textarea {
+                background: rgba(0, 0, 0, 0.2);
+                color: #fcf6ba;
+                border: 1px solid rgba(191, 149, 63, 0.3);
+            }
         </style>
     </head>
-    <body class="flex items-center justify-center min-h-screen p-4">
-        <div class="premium-card p-10 w-full max-w-md text-center">
-            <h1 class="text-3xl mb-8 gold-text uppercase tracking-widest">AI Subtitle Maker</h1>
-            <input type="file" id="audioInput" accept="audio/*" class="mb-6 block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-gray-200 file:text-gray-700 cursor-pointer"/>
-            <button onclick="uploadAudio()" id="btn" class="platinum-btn py-3 px-8 rounded-full font-bold uppercase tracking-wider w-full mb-6">Convert to Text</button>
-            <div id="status" class="text-xs font-medium text-gray-500 italic mb-4"></div>
-            <textarea id="result" class="w-full h-48 p-4 bg-gray-100 rounded-2xl text-gray-700 text-sm shadow-inner hidden focus:outline-none" readonly></textarea>
+    <body class="p-6">
+        <div class="glass-card">
+            <h1 class="gold-title mb-1">JOKER SRT</h1>
+            <p class="text-white/80 text-xs uppercase tracking-[0.3em] mb-10">AI Subtitle Maker</p>
+            
+            <div class="mb-8">
+                <label for="audioInput" class="cursor-pointer bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full transition text-sm">
+                    📁 Choose Audio File
+                </label>
+                <input type="file" id="audioInput" accept="audio/*" class="hidden" onchange="document.getElementById('fileName').innerText = this.files[0].name"/>
+                <p id="fileName" class="text-white/50 text-[10px] mt-4 italic"></p>
+            </div>
+
+            <button onclick="uploadAudio()" id="btn" class="platinum-btn py-4 px-10 w-full uppercase tracking-widest text-sm">
+                Convert to Text
+            </button>
+
+            <div id="status" class="mt-6 text-sm text-white/70 italic"></div>
+            <textarea id="result" class="mt-6 w-full h-48 p-4 rounded-3xl text-xs hidden outline-none" readonly></textarea>
         </div>
+
         <script>
             async function uploadAudio() {
                 const fileInput = document.getElementById('audioInput');
                 const status = document.getElementById('status');
                 const resultArea = document.getElementById('result');
                 const btn = document.getElementById('btn');
-                if (!fileInput.files[0]) return alert("Please select a file!");
-                status.innerText = "✨ AI is analyzing... ✨";
+                if (!fileInput.files[0]) return alert("ဖိုင်အရင်ရွေးပေးပါဗျ!");
+                
+                status.innerText = "✨ Joker AI is processing... ✨";
                 btn.disabled = true;
+                resultArea.classList.add('hidden');
+                
                 const formData = new FormData();
                 formData.append('file', fileInput.files[0]);
+                
                 try {
                     const response = await fetch(window.location.href, { method: 'POST', body: formData });
                     const data = await response.json();
-                    status.innerText = "Success!";
-                    resultArea.value = data.vtt || data.text || JSON.stringify(data);
+                    status.innerText = "အောင်မြင်စွာ ပြောင်းလဲပြီးပါပြီ!";
+                    resultArea.value = data.vtt || data.text || "No transcription available.";
                     resultArea.classList.remove('hidden');
-                } catch (e) { status.innerText = "Error: " + e.message; }
-                finally { btn.disabled = false; }
+                } catch (e) {
+                    status.innerText = "Error: " + e.message;
+                } finally {
+                    btn.disabled = false;
+                }
             }
         </script>
     </body>
     </html>`;
 
     return new Response(html, {
-      headers: { "Content-Type": "text/html" }
+      headers: { "Content-Type": "text/html; charset=utf-8" }
     });
   }
 };
