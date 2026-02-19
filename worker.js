@@ -19,10 +19,11 @@ export default {
         const file = formData.get("file");
         const userKey = formData.get("userApiKey");
         
-        // User Key ရှိရင် ၎င်းကိုသာ အသုံးပြုမည်
         const finalKey = (userKey && userKey.trim().length > 10) ? userKey.trim() : apiKeys[Math.floor(Math.random() * apiKeys.length)];
 
-        if (!file) return new Response(JSON.stringify({ error: "ဖိုင်ရွေးချယ်မှုမရှိပါ" }), { status: 400 });
+        if (!file) return new Response(JSON.stringify({ error: "ဖိုင်မတွေ့ပါ" }), { 
+          status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } 
+        });
 
         const arrayBuffer = await file.arrayBuffer();
         const base64Data = b64encode(arrayBuffer);
@@ -33,7 +34,7 @@ export default {
           body: JSON.stringify({
             contents: [{
               parts: [
-                { text: "Generate professional Burmese SRT subtitles for this media. Return ONLY the SRT text." },
+                { text: "Generate professional Burmese SRT subtitles for this audio/video. Return ONLY the raw SRT format text. No talk, no markdown." },
                 { inline_data: { mime_type: file.type, data: base64Data } }
               ]
             }]
@@ -41,86 +42,87 @@ export default {
         });
 
         const data = await apiResponse.json();
-        if (data.error) throw new Error(data.error.message || "API အကန့်အသတ်ပြည့်သွားပါပြီ");
         
+        // Error handling ကို ပိုမိုခိုင်မာအောင် လုပ်ထားသည်
+        if (data.error) {
+          return new Response(JSON.stringify({ error: data.error.message }), { 
+            status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } 
+          });
+        }
+
         const srtResult = data.candidates[0].content.parts[0].text;
         return new Response(JSON.stringify({ text: srtResult }), {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         });
 
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: "Server Error: " + err.message }), { 
+          status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } 
+        });
       }
     }
 
-    // --- UI DESIGN (မြန်မာဘာသာစကားဖြင့်) ---
+    // --- UI DESIGN (မြန်မာဘာသာ၊ ဘေးတိုက် API Key UI) ---
     return new Response(`
     <!DOCTYPE html>
     <html lang="my">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>JOKER SRT - မြန်မာ AI</title>
+        <title>JOKER SRT - PRO</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
-            body { background: #f3f4f6; min-height: 100vh; font-family: sans-serif; }
-            .premium-card { background: white; border-radius: 30px; box-shadow: 0 10px 40px rgba(191,149,63,0.15); border: 1px solid #e5e7eb; }
-            .gold-grad { background: linear-gradient(to right, #bf953f, #aa771c); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; }
+            body { background: #f0f2f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: sans-serif; }
+            .card { background: white; border-radius: 30px; box-shadow: 0 15px 35px rgba(0,0,0,0.05); }
+            .gold-text { background: linear-gradient(to bottom, #bf953f, #aa771c); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; }
             .btn-gold { background: linear-gradient(135deg, #bf953f, #aa771c); color: white; transition: 0.3s; }
-            .btn-gold:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(170,119,28,0.4); }
-            textarea { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 20px; font-size: 12px; }
+            .btn-gold:hover { transform: translateY(-2px); opacity: 0.9; }
         </style>
     </head>
-    <body class="p-4 md:p-10 flex flex-col items-center">
-        
-        <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            <div class="premium-card p-8 h-fit">
-                <h2 class="text-lg font-bold mb-4 flex items-center gap-2">🔑 <span class="gold-grad">API ဆက်တင်</span></h2>
-                <p class="text-[11px] text-gray-500 mb-4 italic">စနစ်မှပေးထားသော API များအလုပ်မလုပ်ပါက သင်၏ကိုယ်ပိုင် API Key ကို ဤနေရာတွင်ထည့်သွင်းသုံးစွဲနိုင်ပါသည်။</p>
-                <input type="password" id="ukey" placeholder="ကိုယ်ပိုင် API Key ထည့်ရန်" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-[#bf953f] transition"/>
+    <body class="p-4">
+        <div class="max-w-5xl w-full grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="card p-8 h-fit border border-gray-100">
+                <h3 class="font-bold text-gray-700 mb-4 flex items-center gap-2">🔑 API ဆက်တင်</h3>
+                <p class="text-[11px] text-gray-400 mb-4 italic">ဖိုင်အကြီးကြီးများအတွက် ကိုယ်ပိုင် Key သုံးနိုင်သည်</p>
+                <input type="password" id="ukey" placeholder="Gemini API Key ထည့်ရန်" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-xs outline-none focus:border-[#bf953f] transition"/>
             </div>
 
-            <div class="md:col-span-2 premium-card p-8 md:p-12 text-center">
-                <h1 class="text-5xl font-black mb-2 italic gold-grad tracking-tighter">JOKER SRT</h1>
-                <p class="text-[10px] tracking-[0.4em] text-gray-400 mb-10 uppercase">AI ဖြင့် မြန်မာစာတန်းထိုးပြုလုပ်စနစ်</p>
+            <div class="md:col-span-2 card p-10 text-center border-t-4 border-[#bf953f]">
+                <h1 class="text-5xl gold-text italic mb-2 tracking-tighter">JOKER SRT</h1>
+                <p class="text-[10px] tracking-[0.5em] text-gray-300 mb-10 uppercase font-bold">Ultimate Subtitle Engine</p>
 
                 <div class="space-y-6">
-                    <div class="text-left">
-                        <label for="f" class="block w-full p-10 border-2 border-dashed border-gray-200 rounded-3xl cursor-pointer hover:bg-gray-50 transition text-center">
-                            <span id="fn" class="text-gray-400 font-medium">ဗီဒီယို သို့မဟုတ် အသံဖိုင်ရွေးချယ်ပါ</span>
-                        </label>
-                        <input type="file" id="f" accept="video/*,audio/*" class="hidden" onchange="document.getElementById('fn').innerText=this.files[0].name"/>
-                    </div>
-
-                    <button onclick="go()" id="btn" class="btn-gold w-full py-5 rounded-full font-bold uppercase tracking-widest text-sm">စာတန်းထိုးထုတ်မည်</button>
-                    <div id="st" class="text-xs text-gray-500 italic h-4"></div>
+                    <label for="file" class="block w-full p-12 border-2 border-dashed border-gray-100 rounded-3xl cursor-pointer hover:bg-gray-50 transition">
+                        <span id="fname" class="text-gray-400 text-sm">ဗီဒီယို သို့မဟုတ် အသံဖိုင် ရွေးချယ်ပါ</span>
+                    </label>
+                    <input type="file" id="file" accept="video/*,audio/*" class="hidden" onchange="document.getElementById('fname').innerText=this.files[0].name"/>
+                    
+                    <button onclick="process()" id="goBtn" class="btn-gold w-full py-5 rounded-full font-bold uppercase tracking-widest text-sm shadow-lg shadow-[#bf953f]/20">စာတန်းထိုးထုတ်မည်</button>
+                    <div id="status" class="text-xs text-gray-400 italic"></div>
                 </div>
 
-                <div id="resBox" class="hidden mt-10 animate-fade-in text-left">
-                    <hr class="mb-6 border-gray-100">
+                <div id="resBox" class="hidden mt-10 text-left border-t border-gray-50 pt-8">
                     <div class="flex justify-between items-center mb-3">
-                        <span class="text-xs font-bold text-gray-700">ရလဒ် (SRT Format)</span>
-                        <div class="flex gap-4">
-                            <button onclick="cp()" class="text-xs text-[#aa771c] hover:underline font-bold">📋 ကော်ပီကူးမည်</button>
-                            <button onclick="dl()" class="text-xs text-[#aa771c] hover:underline font-bold">💾 ဒေါင်းလုဒ်ဆွဲမည်</button>
+                        <span class="text-xs font-bold text-gray-600">ရလဒ် (SRT)</span>
+                        <div class="flex gap-3">
+                            <button onclick="copyTxt()" class="text-xs text-[#bf953f] font-bold">📋 Copy</button>
+                            <button onclick="save()" class="text-xs text-[#bf953f] font-bold">💾 Download</button>
                         </div>
                     </div>
-                    <textarea id="res" class="w-full h-64 p-5 outline-none text-gray-600 leading-relaxed" readonly></textarea>
+                    <textarea id="output" class="w-full h-64 bg-gray-50 border border-gray-100 rounded-2xl p-5 text-[11px] text-gray-600 outline-none" readonly></textarea>
                 </div>
             </div>
-
         </div>
 
         <script>
-            let txt = "";
-            async function go() {
-                const f = document.getElementById('f').files[0];
-                if(!f) return alert("ဖိုင်အရင်ရွေးချယ်ပေးပါဗျ!");
-                const btn = document.getElementById('btn');
-                const st = document.getElementById('st');
+            let srtData = "";
+            async function process() {
+                const f = document.getElementById('file').files[0];
+                if(!f) return alert("ဖိုင်အရင်ရွေးပေးပါဗျ!");
                 
-                btn.disabled = true; st.innerText = "🚀 AI က စာတန်းထိုးပြုလုပ်နေပါပြီ၊ ခေတ္တစောင့်ဆိုင်းပေးပါ...";
+                const btn = document.getElementById('goBtn');
+                const st = document.getElementById('status');
+                btn.disabled = true; st.innerText = "🚀 AI က လုပ်ဆောင်နေပါပြီ၊ ခေတ္တစောင့်ပေးပါ...";
                 
                 const fd = new FormData();
                 fd.append('file', f);
@@ -128,22 +130,31 @@ export default {
 
                 try {
                     const r = await fetch(window.location.href, { method: 'POST', body: fd });
-                    const d = await r.json();
+                    const text = await r.text();
+                    
+                    let d;
+                    try {
+                        d = JSON.parse(text); // JSON ကို သေချာဖတ်သည်
+                    } catch(e) {
+                        throw new Error("Server မှ HTML ပြန်လာနေပါသည် (Error တက်နေသည်)");
+                    }
+
                     if(d.error) throw new Error(d.error);
-                    txt = d.text;
-                    document.getElementById('res').value = txt;
+                    
+                    srtData = d.text;
+                    document.getElementById('output').value = srtData;
                     document.getElementById('resBox').classList.remove('hidden');
-                    st.innerText = "✨ အောင်မြင်စွာပြုလုပ်ပြီးစီးပါပြီ!";
+                    st.innerText = "✨ အောင်မြင်စွာ ပြီးဆုံးပါပြီ!";
                 } catch(e) {
-                    st.innerText = "❌ အမှားအယွင်းရှိနေပါသည်- " + e.message;
-                    alert("အမှားရှိနေပါတယ်- " + e.message);
+                    alert("အမှားအယွင်း: " + e.message);
+                    st.innerText = "❌ ပြဿနာရှိနေပါသည်";
                 } finally { btn.disabled = false; }
             }
-            function cp() { navigator.clipboard.writeText(txt); alert("ကော်ပီကူးယူပြီးပါပြီ!"); }
-            function dl() {
+            function copyTxt() { navigator.clipboard.writeText(srtData); alert("ကော်ပီကူးပြီးပါပြီ"); }
+            function save() {
                 const a = document.createElement('a');
-                a.href = URL.createObjectURL(new Blob([txt]));
-                a.download = "joker_subtitle.srt"; a.click();
+                a.href = URL.createObjectURL(new Blob([srtData]));
+                a.download = "joker.srt"; a.click();
             }
         </script>
     </body>
