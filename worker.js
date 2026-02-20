@@ -10,47 +10,47 @@ export default {
         const userKey = await env.JOKER_STORAGE.get(`user_key_${chatId}`);
 
         if (update.message.text === "/start") {
-          await sendMessage(chatId, "🃏 **JOKER SRT Bot (Gemini 2.0 Flash)**");
+          await sendMessage(chatId, "🃏 **JOKER SRT Bot (Gemini 1.5 Flash)**\n\nဗီဒီယို သို့မဟုတ် အသံဖိုင် ပို့ပေးပါ။");
           return new Response("OK");
         }
 
         if (update.message.text?.startsWith("/setkey")) {
           const key = update.message.text.split(" ")[1];
+          if (!key) return sendMessage(chatId, "⚠️ Key ထည့်ပေးပါ။");
           await env.JOKER_STORAGE.put(`user_key_${chatId}`, key);
-          await sendMessage(chatId, "✅ Key မှတ်သားပြီးပါပြီ။");
+          await sendMessage(chatId, "✅ API Key အသစ်ကို မှတ်သားပြီးပါပြီ။");
           return new Response("OK");
         }
 
         const file = update.message.video || update.message.audio || update.message.voice || update.message.document;
         if (file) {
-          if (!userKey) return sendMessage(chatId, "❌ Key အရင်ထည့်ပါ။");
-          await sendMessage(chatId, "⏳ Gemini 2.0 က စတင်လုပ်ဆောင်နေပါပြီ...");
+          if (!userKey) return sendMessage(chatId, "❌ Key အရင်ထည့်ပါ။ /setkey [YOUR_KEY]");
+          await sendMessage(chatId, "⏳ Gemini AI က စတင်လုပ်ဆောင်နေပါပြီ။ ခဏစောင့်ပေးပါ...");
 
           try {
             const fileRef = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${file.file_id}`);
             const fileData = await fileRef.json();
             const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${fileData.result.file_path}`;
-            
             const mediaResponse = await fetch(fileUrl);
             const mediaBuffer = await mediaResponse.arrayBuffer();
 
-            // Stack size error ကို လုံးဝကျော်လွှားနိုင်သော Base64 ပြောင်းနည်း
+            // Memory Limit Error မတက်အောင် တစ်ပိုင်းချင်းစီ ပြောင်းလဲခြင်း
             const uint8 = new Uint8Array(mediaBuffer);
             let binary = "";
-            const chunk_size = 8192; 
-            for (let i = 0; i < uint8.length; i += chunk_size) {
-              binary += String.fromCharCode.apply(null, uint8.subarray(i, i + chunk_size));
+            for (let i = 0; i < uint8.length; i += 8192) {
+              binary += String.fromCharCode.apply(null, uint8.subarray(i, i + 8192));
             }
             const base64Data = btoa(binary);
 
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${userKey}`;
+            // Gemini 1.5 Flash သည် Quota ပိုများ၍ ပိုမိုခံနိုင်ရည်ရှိပါသည်
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${userKey}`;
             const geminiResponse = await fetch(geminiUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 contents: [{
                   parts: [
-                    { text: "Provide ONLY professional SRT format content for this audio. No extra text." },
+                    { text: "Provide only professional SRT subtitle format for this audio. Use timestamps accurately." },
                     { inline_data: { mime_type: "audio/mpeg", data: base64Data } }
                   ]
                 }]
@@ -68,9 +68,7 @@ export default {
           }
           return new Response("OK");
         }
-      } catch (err) {
-        return new Response("OK");
-      }
+      } catch (err) { return new Response("OK"); }
     }
     return new Response("OK");
   }
