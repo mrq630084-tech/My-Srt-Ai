@@ -6,40 +6,41 @@ export default {
       try {
         const update = await request.json();
         if (!update.message) return new Response("OK");
-
         const chatId = update.message.chat.id;
-        const text = update.message.text;
 
-        // Command: /start
-        if (text === "/start") {
-          await sendMessage(chatId, "🃏 **JOKER SRT Bot အဆင်သင့်ဖြစ်ပါပြီ!**\n\nကိုယ်ပိုင် API Key သုံးရန် အောက်ပါအတိုင်း အရင်ပို့ပေးပါ-\n`/setkey သင်၏_API_KEY` \n\nပြီးမှ ဗီဒီယို ပို့ပေးပါဗျ။");
+        // ၁။ API Key စစ်ဆေးခြင်း
+        const userKey = await env.JOKER_STORAGE.get(`user_key_${chatId}`);
+        
+        if (update.message.text === "/start") {
+          await sendMessage(chatId, "🃏 **JOKER SRT Bot Active ဖြစ်ပါပြီ!**\n\nAPI Key သတ်မှတ်ရန်: `/setkey YOUR_KEY` \n\nKey ရှိပြီးသားဆိုရင် ဗီဒီယို ပို့နိုင်ပါပြီ။");
           return new Response("OK");
         }
 
-        // Command: /setkey
-        if (text && text.startsWith("/setkey")) {
-          const key = text.split(" ")[1];
-          if (!key) return sendMessage(chatId, "⚠️ Key ထည့်ပေးဖို့ လိုပါတယ်ဗျ။ \n`/setkey AIzaSy...` လို့ ရိုက်ပါ။");
-          
-          // KV ထဲသိမ်းခြင်း (JOKER_STORAGE သုံးထားသည်)
+        if (update.message.text?.startsWith("/setkey")) {
+          const key = update.message.text.split(" ")[1];
+          if (!key) return sendMessage(chatId, "⚠️ Key ထည့်ပေးပါ။");
           await env.JOKER_STORAGE.put(`user_key_${chatId}`, key);
-          await sendMessage(chatId, "✅ API Key ကို မှတ်သားလိုက်ပါပြီ။ အခု ဗီဒီယို/အသံဖိုင် ပို့နိုင်ပါပြီ။");
+          await sendMessage(chatId, "✅ Key မှတ်သားပြီးပါပြီ။");
           return new Response("OK");
         }
 
-        // ဖိုင်လက်ခံခြင်းအပိုင်း
-        if (update.message.video || update.message.audio || update.message.voice || update.message.document) {
-          await sendMessage(chatId, "⏳ စတင်လုပ်ဆောင်နေပါပြီ။ ခဏစောင့်ပေးပါ...");
-          // ဒီနေရာမှာ Transcription Logic ဆက်သွားမှာပါ
+        // ၂။ ဖိုင်ကို လက်ခံပြီး Gemini ဆီ ပို့ခြင်း
+        const file = update.message.video || update.message.audio || update.message.document;
+        if (file) {
+          if (!userKey) return sendMessage(chatId, "❌ အရင်ဆုံး API Key သတ်မှတ်ပေးပါဦးဗျ။");
+          
+          await sendMessage(chatId, "⏳ Gemini AI က စာတန်းထိုး ထုတ်ပေးနေပါတယ်။ ခဏစောင့်ပေးပါ...");
+          
+          // ဤနေရာတွင် Gemini API သို့ ဖိုင်ပို့သည့် Logic အစစ်အမှန် ပါဝင်လာမည်
+          // (ယခုအဆင့်တွင် ချိတ်ဆက်မှုစမ်းသပ်ရန်အတွက်သာ ဖြစ်သည်)
+          await sendMessage(chatId, "🔔 လက်ရှိတွင် ဖိုင်ကို လက်ခံရရှိပါသည်။ SRT ထွက်ရန် Gemini API နှင့် ချိတ်ဆက်နေဆဲဖြစ်ပါသည်။");
           return new Response("OK");
         }
-
       } catch (err) {
-        // Error ဖြစ်ရင်တောင် Response ပြန်ပေးရမယ်
         return new Response("Error: " + err.message);
       }
     }
-    return new Response("Joker Bot is Active!");
+    return new Response("Active");
   }
 };
 
