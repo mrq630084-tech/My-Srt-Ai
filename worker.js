@@ -8,46 +8,70 @@ export default {
         if (!update || !update.message) return new Response("OK");
         const chatId = update.message.chat.id;
 
-        // ၁။ Start Command
+        const userKey = await env.JOKER_STORAGE.get(`user_key_${chatId}`);
+
         if (update.message.text === "/start") {
-          await sendMessage(chatId, "🃏 **JOKER SRT Bot Active ဖြစ်ပါပြီ!**\n\nဗီဒီယိုပို့ပြီး SRT ထုတ်နိုင်ပါပြီ။ Error တစ်ခုခုတက်ရင် ကျွန်တော် အကြောင်းကြားပေးပါ့မယ်။");
+          await sendMessage(chatId, "🃏 **JOKER SRT Bot (Gemini 2.0 Flash)** အဆင်သင့်ဖြစ်ပါပြီ!\n\nဗီဒီယို/အသံဖိုင် ပို့ပေးပါ။");
           return new Response("OK");
         }
 
-        // ၂။ API Key သတ်မှတ်ခြင်း (KV သုံးထားသည်)
         if (update.message.text?.startsWith("/setkey")) {
           const key = update.message.text.split(" ")[1];
-          if (!key) return sendMessage(chatId, "⚠️ Error: API Key ထည့်ပေးဖို့ လိုအပ်ပါတယ်။");
           await env.JOKER_STORAGE.put(`user_key_${chatId}`, key);
-          await sendMessage(chatId, "✅ API Key ကို မှတ်သားလိုက်ပါပြီ။");
+          await sendMessage(chatId, "✅ API Key ကို Gemini 2.0 အတွက် မှတ်သားပြီးပါပြီ။");
           return new Response("OK");
         }
 
-        // ၃။ ဖိုင်လက်ခံပြီး SRT ထုတ်လုပ်ခြင်း
         const file = update.message.video || update.message.audio || update.message.voice || update.message.document;
         if (file) {
+          if (!userKey) return sendMessage(chatId, "❌ API Key အရင်ထည့်ပါ။");
+          
+          await sendMessage(chatId, "⏳ **Gemini 2.0 Flash** က အသံကိုနားထောင်ပြီး SRT ထုတ်ပေးနေပါတယ်။ ခဏစောင့်ပေးပါ...");
+
           try {
-            const userKey = await env.JOKER_STORAGE.get(`user_key_${chatId}`);
-            if (!userKey) throw new Error("API Key ရှာမတွေ့ပါ။ အရင်ဆုံး /setkey နဲ့ Key ထည့်ပေးပါ။");
+            // ၁။ Telegram ဖိုင်ကို ရယူခြင်း
+            const fileRef = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${file.file_id}`);
+            const fileData = await fileRef.json();
+            if (!fileData.ok) throw new Error("Telegram ဖိုင်ကို ဆွဲမရပါ (File size ကြီးလွန်းနေနိုင်သည်)။");
 
-            await sendMessage(chatId, "⏳ Gemini AI က စတင်လုပ်ဆောင်နေပါပြီ။ ခဏစောင့်ပေးပါ...");
+            const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${fileData.result.file_path}`;
+            const mediaResponse = await fetch(fileUrl);
+            const mediaBuffer = await mediaResponse.arrayBuffer();
 
-            // ဤနေရာတွင် Gemini API ချိတ်ဆက်မှု အစစ်အမှန် Logic ထည့်ရပါမည်
-            // စမ်းသပ်ရန်အတွက် Error တက်ပုံကို အောက်တွင် ပြထားပါသည်
+            // ၂။ Gemini 2.0 Flash API သို့ ပို့ခြင်း
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${userKey}`;
             
-            // await processTranscription(file, userKey); // ဥပမာ Logic
+            const geminiResponse = await fetch(geminiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [
+                    { text: "Transcribe the audio and provide the output in professional SRT subtitle format only. Use timestamps." },
+                    { inline_data: { mime_type: "audio/mpeg", data: btoa(String.fromCharCode(...new Uint8Array(mediaBuffer))) } }
+                  ]
+                }]
+              })
+            });
 
-          } catch (internalErr) {
-            // အလုပ်လုပ်နေစဉ်အတွင်း Error တက်ရင် User ဆီ စာပြန်ပို့ပေးမည်
-            await sendMessage(chatId, `❌ **Error ဖြစ်ပွားပါသည်!**\n\nအကြောင်းရင်း: \`${internalErr.message}\` \n\nကျေးဇူးပြု၍ Settings များကို ပြန်စစ်ပေးပါဗျ။`);
+            const result = await geminiResponse.json();
+            
+            if (result.error) {
+              throw new Error(`Gemini Error: ${result.error.message}`);
+            }
+
+            const srtText = result.candidates[0].content.parts[0].text;
+
+            // ၃။ ရလာတဲ့ SRT ကို စာသားအဖြစ် ပြန်ပို့ခြင်း
+            await sendMessage(chatId, "✅ **SRT ထွက်လာပါပြီ (Gemini 2.0):**\n\n" + srtText);
+
+          } catch (e) {
+            await sendMessage(chatId, `❌ **Error:** \`${e.message}\` \n\n(ကျေးဇူးပြု၍ API Key သို့မဟုတ် ဖိုင်ကို ပြန်စစ်ပေးပါ)`);
           }
           return new Response("OK");
         }
-
-      } catch (globalErr) {
-        // System တစ်ခုလုံး Error တက်ရင် Cloudflare Log ထဲပို့မည်
-        console.error("Global Error: ", globalErr.message);
-        return new Response("Error: " + globalErr.message);
+      } catch (err) {
+        return new Response("OK");
       }
     }
     return new Response("OK");
@@ -58,6 +82,6 @@ async function sendMessage(chatId, text) {
   await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: "Markdown" })
+    body: JSON.stringify({ chat_id: chatId, text: text })
   });
 }
