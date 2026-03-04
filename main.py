@@ -1,30 +1,26 @@
-import os
-import telebot
-from flask import Flask, request
+import whisper
 
-TOKEN = "8514932008:AAGX3GyNd-9t8GBEYHm7JYfEZlztxAJvr4A"
+model = whisper.load_model("base")
 
-bot = telebot.TeleBot(TOKEN)
-app = Flask(__name__)
+@bot.message_handler(content_types=['audio','voice','document'])
+def handle_audio(message):
 
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.reply_to(message, "SRT Bot Ready ✅\nSend MP3 or Video")
+    file_info = bot.get_file(message.audio.file_id if message.audio else message.document.file_id)
+    downloaded_file = bot.download_file(file_info.file_path)
 
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    json_str = request.get_data().decode("UTF-8")
-    update = telebot.types.Update.de_json(json_str)
-    bot.process_new_updates([update])
-    return "OK", 200
+    with open("audio.mp3", "wb") as f:
+        f.write(downloaded_file)
 
-@app.route("/")
-def home():
-    return "SRT AI Bot Running ✅"
+    result = model.transcribe("audio.mp3")
 
-if __name__ == "__main__":
-    bot.remove_webhook()
-    bot.set_webhook(url="https://my-srt-ai-production-85f3.up.railway.app/" + TOKEN)
+    with open("subtitles.srt", "w", encoding="utf-8") as f:
+        for i, seg in enumerate(result["segments"], start=1):
+            start = seg["start"]
+            end = seg["end"]
+            text = seg["text"]
 
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+            f.write(f"{i}\n")
+            f.write(f"{start} --> {end}\n")
+            f.write(f"{text}\n\n")
+
+    bot.send_document(message.chat.id, open("subtitles.srt","rb"))
