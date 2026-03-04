@@ -1,5 +1,3 @@
-import whisper
-
 from faster_whisper import WhisperModel
 
 model = WhisperModel("small")
