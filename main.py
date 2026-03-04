@@ -1,6 +1,8 @@
 import whisper
 
-model = whisper.load_model("base")
+from faster_whisper import WhisperModel
+
+model = WhisperModel("small")
 
 @bot.message_handler(content_types=['audio','voice','document'])
 def handle_audio(message):
