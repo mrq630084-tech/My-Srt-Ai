@@ -1,4 +1,4 @@
-flask
-faster-whisper
+python-telegram-bot==20.7
+openai-whisper
 ffmpeg-python
-pyTelegramBotAPI
+torch
