@@ -1,4 +1,3 @@
 pyTelegramBotAPI
-openai-whisper
+faster-whisper
 ffmpeg-python
-torch
