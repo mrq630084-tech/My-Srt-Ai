@@ -9,7 +9,7 @@ bot = telebot.TeleBot(TOKEN)
 
 print("Loading model...")
 
-model = WhisperModel("base", compute_type="int8")
+model = WhisperModel("base", device="cpu", compute_type="int8")
 
 print("Model loaded ✅")
 
