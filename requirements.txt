@@ -1,3 +1,4 @@
 pyTelegramBotAPI
 faster-whisper
 ffmpeg-python
+--extra-index-url https://download.pytorch.org/whl/cpu
